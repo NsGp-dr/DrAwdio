@@ -331,15 +331,138 @@ input[type=range]::-moz-range-thumb {
 }
 #mute-indicator.visible { opacity: 1; }
 
+/* ─── TOGGLE BUTTON (visible only on mobile) ──────────────────── */
+#panel-toggle {
+  display: none;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 200;
+  width: 40px;
+  height: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  transition: border-color 0.15s;
+}
+#panel-toggle:hover { border-color: var(--accent); }
+#panel-toggle span {
+  display: block;
+  width: 18px;
+  height: 1px;
+  background: var(--text);
+  transition: background 0.15s;
+}
+#panel-toggle:hover span { background: var(--accent); }
+
+/* ─── OVERLAY BACKDROP ────────────────────────────────────────── */
+#panel-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(4,4,10,0.7);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+#panel-backdrop.visible { opacity: 1; }
+
 /* ─── RESPONSIVE ─────────────────────────────────────────────── */
-@media (max-width: 600px) {
-  #panel { width: 180px; min-width: 180px; }
-  :root { --panel-w: 180px; }
-  .panel-title { font-size: 12px; }
+@media (max-width: 640px) {
+  /* Show toggle button */
+  #panel-toggle { display: flex; }
+  #panel-backdrop { display: block; }
+
+  /* Panel becomes a fixed overlay drawer */
+  #panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 260px;
+    min-width: 260px;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+  }
+  #panel.open { transform: translateX(0); }
+
+  /* Canvas fills the whole screen */
+  #canvas-wrap { width: 100vw; }
+
+  /* Status badge: bigger and readable */
+  #status-badge {
+    font-size: 10px;
+    line-height: 2;
+    padding: 12px 16px;
+  }
+
+  /* Section labels: slightly bigger */
+  .section-label { font-size: 9px; }
+
+  /* Sliders: larger touch target via padding trick */
+  input[type=range] {
+    height: 4px;
+    padding: 16px 0; /* vertical hit area ≈ 36px */
+    background-clip: content-box;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Pills: bigger tap zone */
+  .sym-pill {
+    padding: 7px 12px;
+    font-size: 10px;
+    min-width: 36px;
+    text-align: center;
+  }
+
+  /* Checkboxes: larger */
+  .check-box { width: 20px; height: 20px; }
+  .check-box::after { font-size: 12px; }
+  .check-label { font-size: 10px; }
+  .check-row { gap: 10px; min-height: 36px; }
+
+  /* Buttons: proper touch height */
+  .btn {
+    padding: 12px 6px;
+    font-size: 9px;
+    min-height: 44px;
+  }
+  .btn-row { gap: 8px; padding: 14px 14px; }
+
+  /* ctrl labels readable */
+  .ctrl-label { font-size: 10px; }
+  .ctrl-label span:last-child { font-size: 11px; }
+  .ctrl-row { margin-bottom: 14px; }
+
+  /* Panel title bigger */
+  .panel-title { font-size: 16px; }
+  .panel-header { padding: 56px 16px 14px; } /* room for toggle button */
 }
 </style>
 </head>
 <body>
+
+<!-- Mobile panel toggle -->
+<button id="panel-toggle" aria-label="Abrir controles">
+  <span></span><span></span><span></span>
+</button>
+<div id="panel-backdrop"></div>
 
 <div id="app">
 
@@ -522,7 +645,9 @@ const CANVAS_SIZE = (() => {
     window.innerWidth  - 260,
     window.innerHeight - 20
   );
-  return Math.max(500, Math.min(900, avail - (avail % 2)));
+  // On mobile the panel is an overlay, so full width is available
+  const isMob = window.innerWidth <= 640;
+  return Math.max(300, Math.min(900, (isMob ? avail + 260 : avail) - ((isMob ? avail + 260 : avail) % 2)));
 })();
 
 // ─── ESTADO GLOBAL ────────────────────────────────────────────────────
@@ -898,6 +1023,8 @@ function endDraw(e) {
 }
 
 function moveCrosshair(e) {
+  // Crosshair only on mouse, not touch (finger already occludes the point)
+  if (e.touches) { crosshair.style.opacity = '0'; return; }
   const rect = mainCanvas.getBoundingClientRect();
   const src  = e.touches ? e.touches[0] : e;
   const cx   = src.clientX - rect.left + container.getBoundingClientRect().left;
@@ -1084,7 +1211,37 @@ document.getElementById('btn-save').addEventListener('click', () => {
   link.click();
 });
 
-// ─── RESIZE HANDLING ─────────────────────────────────────────────────
+// ─── MOBILE PANEL TOGGLE ─────────────────────────────────────────────
+const panelEl      = document.getElementById('panel');
+const toggleBtn    = document.getElementById('panel-toggle');
+const backdrop     = document.getElementById('panel-backdrop');
+
+function isMobile() { return window.innerWidth <= 640; }
+
+function openPanel() {
+  panelEl.classList.add('open');
+  backdrop.classList.add('visible');
+  toggleBtn.setAttribute('aria-label', 'Cerrar controles');
+}
+function closePanel() {
+  panelEl.classList.remove('open');
+  backdrop.classList.remove('visible');
+  toggleBtn.setAttribute('aria-label', 'Abrir controles');
+}
+function togglePanel() {
+  if (panelEl.classList.contains('open')) closePanel();
+  else openPanel();
+}
+
+toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePanel(); });
+backdrop.addEventListener('click', closePanel);
+
+// Close panel when user starts drawing on canvas (mobile UX)
+mainCanvas.addEventListener('touchstart', () => {
+  if (isMobile() && panelEl.classList.contains('open')) closePanel();
+}, { passive: true });
+
+
 // El canvas tiene tamaño fijo; solo ajustamos el CSS scale si la ventana
 // es más pequeña que el canvas.
 function handleResize() {
