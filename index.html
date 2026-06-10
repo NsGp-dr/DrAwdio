@@ -61,6 +61,7 @@ html, body {
   justify-content: center;
   overflow: hidden;
   position: relative;
+  touch-action: none;
 }
 
 /* ─── PANEL INTERNALS ─────────────────────────────────────────── */
@@ -266,6 +267,7 @@ input[type=range]::-moz-range-thumb {
 #canvas-container {
   position: relative;
   display: inline-block;
+  touch-action: none;
 }
 
 #depth-canvas {
@@ -278,6 +280,9 @@ input[type=range]::-moz-range-thumb {
 #main-canvas {
   display: block;
   cursor: crosshair;
+  touch-action: none;   /* evita scroll/zoom de iOS interfiriendo con el dibujo */
+  -webkit-user-select: none;
+  user-select: none;
   border: 1px solid var(--border);
   box-shadow:
     0 0 40px rgba(0,0,0,0.8),
@@ -639,16 +644,17 @@ const SYMMETRY_VALUES = [2, 3, 4, 5, 6, 8, 12, 24, 36];
 // Do Re Mi Sol La (pentatónica mayor)
 const PENTA_RATIOS = [1, 9/8, 5/4, 3/2, 5/3];
 
-// Canvas size: se ajusta al área disponible
-const CANVAS_SIZE = (() => {
+// Canvas size: calculado dinámicamente según viewport real
+function calcCanvasSize() {
+  const mob  = window.innerWidth <= 640;
+  const pw   = mob ? 0 : 240; // panel es overlay en móvil, no ocupa espacio
   const avail = Math.min(
-    window.innerWidth  - 260,
+    window.innerWidth  - pw,
     window.innerHeight - 20
   );
-  // On mobile the panel is an overlay, so full width is available
-  const isMob = window.innerWidth <= 640;
-  return Math.max(300, Math.min(900, (isMob ? avail + 260 : avail) - ((isMob ? avail + 260 : avail) % 2)));
-})();
+  return Math.max(200, Math.min(900, avail - (avail % 2)));
+}
+let CANVAS_SIZE = calcCanvasSize();
 
 // ─── ESTADO GLOBAL ────────────────────────────────────────────────────
 const state = {
@@ -980,14 +986,21 @@ const crosshair = document.getElementById('crosshair');
 function getPos(e) {
   const rect = mainCanvas.getBoundingClientRect();
   const src  = e.touches ? e.touches[0] : e;
+  // Usar dimensiones reales del canvas vs tamaño visual (ratio explícito)
+  const scaleX = mainCanvas.width  / rect.width;
+  const scaleY = mainCanvas.height / rect.height;
   return {
-    x: (src.clientX - rect.left) * (CANVAS_SIZE / rect.width),
-    y: (src.clientY - rect.top)  * (CANVAS_SIZE / rect.height),
+    x: (src.clientX - rect.left) * scaleX,
+    y: (src.clientY - rect.top)  * scaleY,
   };
 }
 
 function startDraw(e) {
   e.preventDefault();
+  // Cerrar panel en móvil al empezar a dibujar
+  if (e.touches && typeof panelEl !== 'undefined' && panelEl.classList.contains('open')) {
+    closePanel();
+  }
   if (!audioCtx) initAudio();
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   state.drawing = true;
@@ -1236,24 +1249,34 @@ function togglePanel() {
 toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePanel(); });
 backdrop.addEventListener('click', closePanel);
 
-// Close panel when user starts drawing on canvas (mobile UX)
-mainCanvas.addEventListener('touchstart', () => {
-  if (isMobile() && panelEl.classList.contains('open')) closePanel();
-}, { passive: true });
+// (panel close on draw is handled inside startDraw)
 
 
-// El canvas tiene tamaño fijo; solo ajustamos el CSS scale si la ventana
-// es más pequeña que el canvas.
+// Resize nativo del canvas (sin CSS scale) — mantiene coords táctiles correctas
 function handleResize() {
-  const wrap = document.getElementById('canvas-wrap');
-  const ww   = wrap.clientWidth;
-  const wh   = wrap.clientHeight;
-  const scale = Math.min(1, Math.min(ww / CANVAS_SIZE, wh / CANVAS_SIZE));
-  container.style.transform = `scale(${scale})`;
-  container.style.transformOrigin = 'center center';
+  const newSize = calcCanvasSize();
+  if (newSize === CANVAS_SIZE) return;
+  CANVAS_SIZE = newSize;
+
+  // Guardar imagen actual
+  const imgData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+
+  // Redimensionar ambos canvas
+  mainCanvas.width  = mainCanvas.height  = CANVAS_SIZE;
+  depthCanvas.width = depthCanvas.height = CANVAS_SIZE;
+  container.style.width = container.style.height = CANVAS_SIZE + 'px';
+  container.style.transform = '';
+
+  // Restaurar fondo y redimensionar depthData
+  ctx.fillStyle = '#04040a';
+  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  ctx.putImageData(imgData, 0, 0);
+
+  dCtx.fillStyle = 'black';
+  dCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 }
 window.addEventListener('resize', handleResize);
-handleResize();
+// No llamar handleResize() en init — el canvas ya se dimensionó correctamente
 
 // ─── INIT: valores iniciales de UI ───────────────────────────────────
 document.getElementById('val-offset').textContent     = '0°';
