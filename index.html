@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>DrAwdio· cuaderno de reflexiones</title>
+<style>
+/* ─── RESET & BASE ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #04040a;
+  --surface:   #0a0a14;
+  --border:    rgba(255,255,255,0.07);
+  --text-dim:  rgba(255,255,255,0.28);
+  --text:      rgba(255,255,255,0.72);
+  --accent-h:  160; /* will be updated live via JS */
+  --accent:    hsl(var(--accent-h), 80%, 58%);
+  --font-mono: 'Courier New', 'Lucida Console', monospace;
+  --font-disp: Georgia, 'Times New Roman', serif;
+  --panel-w:   240px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+
+/* ─── LAYOUT ───────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  align-items: stretch;
+}
+
+/* LEFT PANEL */
+#panel {
+  width: var(--panel-w);
+  min-width: var(--panel-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+/* CANVAS AREA */
+#canvas-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─── PANEL INTERNALS ─────────────────────────────────────────── */
+.panel-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title {
+  font-family: var(--font-disp);
+  font-size: 15px;
+  font-weight: normal;
+  font-style: italic;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  line-height: 1.3;
+}
+.panel-subtitle {
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.section {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.section-label {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+/* STATUS BADGE */
+#status-badge {
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border);
+  font-size: 9px;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+#status-sym { color: var(--accent); font-weight: bold; }
+#status-off { color: var(--accent); }
+
+/* SLIDERS */
+.ctrl-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.ctrl-row:last-child { margin-bottom: 0; }
+
+.ctrl-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 9px;
+  color: var(--text-dim);
+}
+.ctrl-label span:last-child {
+  color: var(--text);
+  font-size: 10px;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 2px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 1px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  transition: transform 0.12s;
+  box-shadow: 0 0 6px var(--accent);
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+input[type=range]::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* CHECKBOXES */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.check-row input[type=checkbox] { display: none; }
+.check-box {
+  width: 14px; height: 14px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 2px;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+.check-row input:checked ~ .check-box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.check-box::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #000;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.check-row input:checked ~ .check-box::after { opacity: 1; }
+.check-label { font-size: 9px; color: var(--text-dim); cursor: pointer; }
+
+/* SYMMETRY PILLS */
+#sym-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.sym-pill {
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 2px;
+  font-size: 9px;
+  cursor: pointer;
+  transition: all 0.12s;
+  color: var(--text-dim);
+  user-select: none;
+}
+.sym-pill:hover { border-color: var(--accent); color: var(--text); }
+.sym-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: bold;
+}
+
+/* BUTTONS */
+.btn-row {
+  display: flex;
+  gap: 6px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.btn {
+  flex: 1;
+  padding: 8px 4px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+.btn.danger:hover { border-color: #ff4444; color: #ff4444; }
+.btn.active-state {
+  background: rgba(255,100,100,0.1);
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+/* FOOTER */
+#panel-footer {
+  margin-top: auto;
+  padding: 10px 16px;
+  font-size: 8px;
+  color: rgba(255,255,255,0.12);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+/* ─── CANVAS ──────────────────────────────────────────────────── */
+#canvas-container {
+  position: relative;
+  display: inline-block;
+}
+
+#depth-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  opacity: 0; /* hidden — used as data buffer, not rendered directly */
+  pointer-events: none;
+}
+
+#main-canvas {
+  display: block;
+  cursor: crosshair;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 0 40px rgba(0,0,0,0.8),
+    0 0 80px rgba(0,0,0,0.4);
+}
+
+/* Vignette overlay */
+#vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    transparent 55%,
+    rgba(4,4,10,0.55) 100%);
+  z-index: 2;
+}
+
+/* ─── CROSSHAIR INDICATOR ─────────────────────────────────────── */
+#crosshair {
+  position: absolute;
+  width: 20px; height: 20px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#crosshair::before, #crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.4);
+}
+#crosshair::before { width: 1px; height: 100%; left: 50%; top: 0; }
+#crosshair::after  { width: 100%; height: 1px; top: 50%; left: 0; }
+
+/* ─── MUTE OVERLAY ────────────────────────────────────────────── */
+#mute-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 6px 12px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: #ff4444;
+  border: 1px solid #ff4444;
+  border-radius: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+#mute-indicator.visible { opacity: 1; }
+
+/* ─── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  #panel { width: 180px; min-width: 180px; }
+  :root { --panel-w: 180px; }
+  .panel-title { font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══ PANEL IZQUIERDO ═══════════════════════════════════════ -->
+  <div id="panel">
+
+    <div class="panel-header">
+      <div class="panel-title">Mandala<br>Sonora</div>
+      <div class="panel-subtitle">cuaderno sagrado · v1</div>
+    </div>
+
+    <!-- STATUS -->
+    <div id="status-badge">
+      SIM × <span id="status-sym">8</span>
+      &nbsp;|&nbsp; OFF <span id="status-off">0°</span><br>
+      HUE <span id="status-hue">0°</span>
+      &nbsp;|&nbsp; <span id="status-mode">LIBRE</span>
+    </div>
+
+    <!-- SIMETRÍA -->
+    <div class="section">
+      <div class="section-label">Simetría rotacional</div>
+      <div id="sym-pills"></div>
+    </div>
+
+    <!-- OFFSET ROTACIÓN -->
+    <div class="section">
+      <div class="section-label">Offset de rotación</div>
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>ángulo base</span>
+          <span id="val-offset">0°</span>
+        </div>
+        <input type="range" id="sl-offset" min="0" max="360" step="1" value="0">
+      </div>
+
+      <label class="check-row">
+        <input type="checkbox" id="chk-mirror">
+        <div class="check-box"></div>
+        <span class="check-label">reflexión especular</span>
+      </label>
+
+      <label class="check-row">
+        <input type="checkbox" id="chk-rotate-anim" checked>
+        <div class="check-box"></div>
+        <span class="check-label">offset animado</span>
+      </label>
+
+      <div class="ctrl-row" id="row-rot-speed">
+        <div class="ctrl-label">
+          <span>vel. rotación</span>
+          <span id="val-rot-speed">4°/s</span>
+        </div>
+        <input type="range" id="sl-rot-speed" min="0" max="30" step="0.5" value="4">
+      </div>
+    </div>
+
+    <!-- PROFUNDIDAD Y COLOR -->
+    <div class="section">
+      <div class="section-label">Profundidad & luz</div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>decaimiento</span>
+          <span id="val-decay">lento</span>
+        </div>
+        <input type="range" id="sl-decay" min="0" max="1" step="0.01" value="0.15">
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>grosor trazo</span>
+          <span id="val-size">3px</span>
+        </div>
+        <input type="range" id="sl-size" min="1" max="20" step="0.5" value="3">
+      </div>
+
+      <label class="check-row">
+        <input type="checkbox" id="chk-hue-fix">
+        <div class="check-box"></div>
+        <span class="check-label">hue fijo por ángulo</span>
+      </label>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>vel. hue</span>
+          <span id="val-hue-speed">1°/s</span>
+        </div>
+        <input type="range" id="sl-hue-speed" min="0" max="10" step="0.1" value="1">
+      </div>
+    </div>
+
+    <!-- AUDIO -->
+    <div class="section">
+      <div class="section-label">Sonificación</div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>volumen global</span>
+          <span id="val-vol">65%</span>
+        </div>
+        <input type="range" id="sl-vol" min="0" max="100" step="1" value="65">
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>reverb mix</span>
+          <span id="val-reverb">30%</span>
+        </div>
+        <input type="range" id="sl-reverb" min="0" max="100" step="1" value="30">
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-label">
+          <span>duración nota</span>
+          <span id="val-dur">150ms</span>
+        </div>
+        <input type="range" id="sl-dur" min="50" max="400" step="10" value="150">
+      </div>
+
+      <label class="check-row">
+        <input type="checkbox" id="chk-poly" checked>
+        <div class="check-box"></div>
+        <span class="check-label">acorde simétrico</span>
+      </label>
+    </div>
+
+    <!-- BOTONES -->
+    <div class="btn-row">
+      <button class="btn danger" id="btn-clear">LIMPIAR</button>
+      <button class="btn" id="btn-mute">SILENCIO</button>
+    </div>
+    <div class="btn-row" style="padding-top:0; border-top:none;">
+      <button class="btn" id="btn-save">EXPORTAR</button>
+    </div>
+
+    <div id="panel-footer">
+      GUETA ATLAS · mandala sonora<br>
+      web audio api · canvas 2d
+    </div>
+  </div><!-- /panel -->
+
+  <!-- ═══ ÁREA DE DIBUJO ════════════════════════════════════════ -->
+  <div id="canvas-wrap">
+    <div id="canvas-container">
+      <canvas id="depth-canvas"></canvas>
+      <canvas id="main-canvas"></canvas>
+      <div id="vignette"></div>
+      <div id="crosshair"></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<div id="mute-indicator">SILENCIO</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   MANDALA SONORA · cuaderno sagrado
+   ─────────────────────────────────────────────────────────────────────
+   Arquitectura:
+   · StateManager   — estado único inmutable de controles
+   · AudioEngine    — Web Audio API (osciladores, reverb, ganancia)
+   · DepthMap       — canvas oculto 8-bit de acumulación de profundidad
+   · Renderer       — dibujo simétrico sobre canvas principal
+   · InputHandler   — mouse / touch / stylus
+   · AnimLoop       — requestAnimationFrame + hue drift
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// ─── CONSTANTES ───────────────────────────────────────────────────────
+const SYMMETRY_VALUES = [2, 3, 4, 5, 6, 8, 12, 24, 36];
+
+// Escala pentatónica: ratios relativos a la frecuencia base
+// Do Re Mi Sol La (pentatónica mayor)
+const PENTA_RATIOS = [1, 9/8, 5/4, 3/2, 5/3];
+
+// Canvas size: se ajusta al área disponible
+const CANVAS_SIZE = (() => {
+  const avail = Math.min(
+    window.innerWidth  - 260,
+    window.innerHeight - 20
+  );
+  return Math.max(500, Math.min(900, avail - (avail % 2)));
+})();
+
+// ─── ESTADO GLOBAL ────────────────────────────────────────────────────
+const state = {
+  symmetry:       8,
+  offset:         0,         // ángulo base manual (grados)
+  offsetAnim:     true,      // offset animado
+  rotSpeed:       4,         // grados/segundo del offset animado
+  mirror:         false,     // reflexión especular
+  hueFixAngle:    false,     // hue determinado por ángulo del trazo
+  hueSpeed:       1,         // grados/segundo de drift de hue
+  decay:          0.15,      // 0=sin decaimiento, 1=rápido
+  brushSize:      3,
+  volume:         0.65,
+  reverbMix:      0.30,
+  noteDuration:   150,       // ms
+  polyChord:      true,
+  muted:          false,
+
+  // tiempo y color en vivo (actualizado en animLoop)
+  hue:            0,         // hue global actual (0-360)
+  animOffset:     0,         // offset acumulado por animación
+  lastTime:       null,
+
+  // estado de dibujo
+  drawing:        false,
+  lastX:          null,
+  lastY:          null,
+  lastDrawTime:   0,
+};
+
+// ─── NODO RAÍZ DE AUDIO ───────────────────────────────────────────────
+let audioCtx     = null;
+let masterGain   = null;
+let reverbNode   = null;
+let dryGain      = null;
+let wetGain      = null;
+
+// Pool de nodos para evitar memory leaks
+const activeNodes = new Set();
+const MAX_VOICES  = 64; // límite de voces simultáneas
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Árbol de ganancia: osciladores → dryGain/wetGain → masterGain → destino
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = state.volume;
+  masterGain.connect(audioCtx.destination);
+
+  dryGain = audioCtx.createGain();
+  dryGain.gain.value = 1 - state.reverbMix;
+  dryGain.connect(masterGain);
+
+  wetGain = audioCtx.createGain();
+  wetGain.gain.value = state.reverbMix;
+
+  // Reverb sintético: ConvolverNode con impulso generado
+  reverbNode = audioCtx.createConvolver();
+  reverbNode.buffer = buildReverbIR(audioCtx, 1.8, 3.0, false);
+  reverbNode.connect(wetGain);
+  wetGain.connect(masterGain);
+}
+
+/**
+ * Genera un impulso de respuesta al impulso (IR) para el reverb
+ * usando ruido decayente exponencialmente.
+ */
+function buildReverbIR(ctx, duration, decay, reverse) {
+  const rate     = ctx.sampleRate;
+  const length   = Math.floor(rate * duration);
+  const impulse  = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      data[i] = (Math.random() * 2 - 1) *
+                Math.pow(1 - (reverse ? 1 - t : t), decay);
+    }
+  }
+  return impulse;
+}
+
+/**
+ * Mapea distancia al centro [0..1] → frecuencia pentatónica
+ * Centro: registro grave (80-150 Hz), borde: agudo (800-1200 Hz)
+ */
+function distToFreq(normDist) {
+  const baseFreq  = 80;
+  const peakFreq  = 1200;
+  // Interpolación exponencial entre grave y agudo
+  const rawFreq   = baseFreq * Math.pow(peakFreq / baseFreq, normDist);
+  // Cuantizar a la escala pentatónica más cercana (octava relativa)
+  const octaves   = Math.floor(Math.log2(rawFreq / baseFreq));
+  const baseOct   = baseFreq * Math.pow(2, octaves);
+  let   bestFreq  = rawFreq;
+  let   bestDist  = Infinity;
+  for (const ratio of PENTA_RATIOS) {
+    const candidate = baseOct * ratio;
+    const d = Math.abs(rawFreq - candidate);
+    if (d < bestDist) { bestDist = d; bestFreq = candidate; }
+    // también octava superior
+    const c2 = candidate * 2;
+    const d2 = Math.abs(rawFreq - c2);
+    if (d2 < bestDist) { bestDist = d2; bestFreq = c2; }
+  }
+  return Math.max(80, Math.min(1400, bestFreq));
+}
+
+/**
+ * Reproduce un tono corto sinestésico.
+ * normDist: distancia normalizada al centro [0..1]
+ * velocity: velocidad del trazo normalizada [0..1]
+ * detuneRatio: factor de detune para puntos simétricos (crea el "acorde")
+ */
+function playTone(normDist, velocity, detuneRatio = 1.0) {
+  if (!audioCtx || state.muted) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  // Limitar número de voces activas para evitar sobrecarga
+  if (activeNodes.size >= MAX_VOICES) return;
+
+  const freq     = distToFreq(normDist) * detuneRatio;
+  const dur      = state.noteDuration / 1000; // segundos
+  const now      = audioCtx.currentTime;
+
+  // Timbre: sine en centro, sawtooth en borde, mezcla progresiva
+  const osc1 = audioCtx.createOscillator();
+  const osc2 = audioCtx.createOscillator();
+  osc1.type  = 'sine';
+  osc2.type  = 'sawtooth';
+  osc1.frequency.value = freq;
+  osc2.frequency.value = freq;
+
+  // Mezcla de timbres según posición
+  const mixGain1 = audioCtx.createGain();
+  const mixGain2 = audioCtx.createGain();
+  mixGain1.gain.value = 1 - normDist * 0.7;        // sine predomina en centro
+  mixGain2.gain.value = normDist * 0.4;             // sawtooth sube en borde
+
+  // Envolvente ADSR rápida
+  const envGain  = audioCtx.createGain();
+  const peakVol  = Math.max(0.02, Math.min(0.25, velocity * 0.3));
+  envGain.gain.setValueAtTime(0, now);
+  envGain.gain.linearRampToValueAtTime(peakVol, now + 0.008); // attack
+  envGain.gain.exponentialRampToValueAtTime(peakVol * 0.6, now + dur * 0.3); // decay
+  envGain.gain.exponentialRampToValueAtTime(0.0001, now + dur); // release
+
+  // Conexiones: osc → mezcla → envolvente → reverb/dry
+  osc1.connect(mixGain1); osc2.connect(mixGain2);
+  mixGain1.connect(envGain); mixGain2.connect(envGain);
+  envGain.connect(dryGain);
+  envGain.connect(reverbNode);
+
+  osc1.start(now);
+  osc2.start(now);
+  osc1.stop(now + dur + 0.05);
+  osc2.stop(now + dur + 0.05);
+
+  // Registro de nodo activo para cleanup
+  const nodeId = Symbol();
+  activeNodes.add(nodeId);
+  osc1.onended = () => {
+    activeNodes.delete(nodeId);
+    osc1.disconnect(); osc2.disconnect();
+    mixGain1.disconnect(); mixGain2.disconnect();
+    envGain.disconnect();
+  };
+}
+
+// ─── CANVAS SETUP ─────────────────────────────────────────────────────
+const mainCanvas  = document.getElementById('main-canvas');
+const depthCanvas = document.getElementById('depth-canvas');
+const ctx         = mainCanvas.getContext('2d');
+const dCtx        = depthCanvas.getContext('2d');
+const container   = document.getElementById('canvas-container');
+
+mainCanvas.width  = mainCanvas.height  = CANVAS_SIZE;
+depthCanvas.width = depthCanvas.height = CANVAS_SIZE;
+container.style.width = container.style.height = CANVAS_SIZE + 'px';
+
+// Llenar fondo negro
+ctx.fillStyle = '#04040a';
+ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+dCtx.fillStyle = 'black';
+dCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+const CX = CANVAS_SIZE / 2;  // centro X
+const CY = CANVAS_SIZE / 2;  // centro Y
+
+// ─── MAPA DE PROFUNDIDAD ──────────────────────────────────────────────
+// El depthCanvas acumula trazos como luminancia (canal R).
+// getDepthAt(x,y) → [0..1] normalizado
+
+const depthData = new Float32Array(CANVAS_SIZE * CANVAS_SIZE); // profundidad acumulada
+
+function addDepthAt(x, y, radius, amount) {
+  const r  = Math.ceil(radius);
+  const ix = Math.round(x);
+  const iy = Math.round(y);
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const px = ix + dx, py = iy + dy;
+      if (px < 0 || py < 0 || px >= CANVAS_SIZE || py >= CANVAS_SIZE) continue;
+      const dist2 = dx*dx + dy*dy;
+      if (dist2 > r*r) continue;
+      const w = 1 - Math.sqrt(dist2) / r; // perfil gaussiano suave
+      const idx = py * CANVAS_SIZE + px;
+      depthData[idx] = Math.min(1, depthData[idx] + amount * w);
+    }
+  }
+}
+
+function getDepthAt(x, y) {
+  const ix = Math.max(0, Math.min(CANVAS_SIZE-1, Math.round(x)));
+  const iy = Math.max(0, Math.min(CANVAS_SIZE-1, Math.round(y)));
+  return depthData[iy * CANVAS_SIZE + ix];
+}
+
+function decayDepth() {
+  if (state.decay === 0) return;
+  const factor = 1 - state.decay * 0.003; // decaimiento muy lento por frame
+  for (let i = 0; i < depthData.length; i++) {
+    if (depthData[i] > 0.0001) depthData[i] *= factor;
+    else depthData[i] = 0;
+  }
+}
+
+// ─── RENDERER ─────────────────────────────────────────────────────────
+
+/**
+ * Dibuja un punto (x, y) en coordenadas del canvas con todos sus
+ * reflejos de simetría rotacional, aplicando profundidad y color.
+ */
+function drawSymmetricPoint(x, y, prevX, prevY, velocity, hue) {
+  const sym    = state.symmetry;
+  const offsetRad = (state.offset + state.animOffset) * Math.PI / 180;
+
+  // Distancia del punto al centro (normalizada 0..1)
+  const dx      = x - CX, dy = y - CY;
+  const dist    = Math.sqrt(dx*dx + dy*dy);
+  const normD   = Math.min(1, dist / (CANVAS_SIZE * 0.5));
+
+  // Hue: fijo por ángulo o global
+  const pointHue = state.hueFixAngle
+    ? (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360
+    : hue;
+
+  // Acumular profundidad en el punto
+  addDepthAt(x, y, state.brushSize * 1.5, 0.08);
+  const depth    = getDepthAt(x, y);
+  const lightness = 20 + depth * 80;      // 20%..100%
+  const saturation = 60 + depth * 40;     // 60%..100%
+
+  // Color del trazo
+  const color    = `hsl(${pointHue},${saturation}%,${lightness}%)`;
+
+  // Límite de throttle de sonido (no cada píxel)
+  const now      = performance.now();
+  const soundThrottle = Math.max(25, 60 - velocity * 20); // ms entre sonidos
+  const shouldSound = (now - state.lastDrawTime) > soundThrottle;
+
+  for (let i = 0; i < sym; i++) {
+    const angle = (2 * Math.PI * i / sym) + offsetRad;
+    const iterations = state.mirror ? 2 : 1;
+
+    for (let m = 0; m < iterations; m++) {
+      // Ángulo efectivo: en la reflexión especular se invierte el componente Y
+      const a = m === 0 ? angle : -angle + 2 * offsetRad;
+
+      // Rotar punto alrededor del centro
+      const cosA = Math.cos(a), sinA = Math.sin(a);
+      const rx  = CX + dx * cosA - dy * sinA;
+      const ry  = CY + dx * sinA + dy * cosA;
+
+      // Punto anterior rotado (para línea continua)
+      let rpx = null, rpy = null;
+      if (prevX !== null && prevY !== null) {
+        const pdx = prevX - CX, pdy = prevY - CY;
+        rpx = CX + pdx * cosA - pdy * sinA;
+        rpy = CY + pdx * sinA + pdy * cosA;
+      }
+
+      // ── Trazo principal ──────────────────────────────────
+      ctx.save();
+      ctx.lineCap  = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = state.brushSize;
+
+      // Glow: trazo más brillante compuesto en "lighter"
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `hsla(${pointHue},${saturation}%,${Math.min(100,lightness+30)}%,0.12)`;
+      ctx.lineWidth = state.brushSize * 2.8;
+      ctx.beginPath();
+      if (rpx !== null) { ctx.moveTo(rpx, rpy); ctx.lineTo(rx, ry); }
+      else ctx.arc(rx, ry, state.brushSize * 1.4, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Trazo principal sobre "source-over"
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = state.brushSize;
+      ctx.beginPath();
+      if (rpx !== null) { ctx.moveTo(rpx, rpy); ctx.lineTo(rx, ry); }
+      else ctx.arc(rx, ry, state.brushSize / 2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // ── Sonido simétrico ─────────────────────────────────
+      if (shouldSound && state.polyChord && i > 0) {
+        // Los puntos simétricos suenan detuneados ligeramente
+        const detuneRatio = 1 + (i / sym) * 0.02; // leve detune progresivo
+        playTone(normD, velocity * 0.35, detuneRatio);
+      }
+    }
+  }
+
+  // Sonido del punto principal (i=0)
+  if (shouldSound) {
+    playTone(normD, velocity, 1.0);
+    state.lastDrawTime = now;
+  }
+}
+
+// ─── INPUT HANDLER ────────────────────────────────────────────────────
+const crosshair = document.getElementById('crosshair');
+
+function getPos(e) {
+  const rect = mainCanvas.getBoundingClientRect();
+  const src  = e.touches ? e.touches[0] : e;
+  return {
+    x: (src.clientX - rect.left) * (CANVAS_SIZE / rect.width),
+    y: (src.clientY - rect.top)  * (CANVAS_SIZE / rect.height),
+  };
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  if (!audioCtx) initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  state.drawing = true;
+  const { x, y } = getPos(e);
+  state.lastX = x;
+  state.lastY = y;
+  moveCrosshair(e);
+}
+
+function moveDraw(e) {
+  e.preventDefault();
+  moveCrosshair(e);
+  if (!state.drawing) return;
+
+  const { x, y } = getPos(e);
+  const dx = x - state.lastX, dy = y - state.lastY;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+
+  // Velocidad normalizada (0..1) para dinámica de sonido y brillo
+  const velocity = Math.min(1, dist / 20);
+
+  drawSymmetricPoint(x, y, state.lastX, state.lastY, velocity, state.hue);
+  state.lastX = x;
+  state.lastY = y;
+}
+
+function endDraw(e) {
+  e.preventDefault();
+  state.drawing = false;
+  state.lastX   = null;
+  state.lastY   = null;
+  crosshair.style.opacity = '0';
+}
+
+function moveCrosshair(e) {
+  const rect = mainCanvas.getBoundingClientRect();
+  const src  = e.touches ? e.touches[0] : e;
+  const cx   = src.clientX - rect.left + container.getBoundingClientRect().left;
+  const cy   = src.clientY - rect.top  + container.getBoundingClientRect().top;
+  // Posición relativa al container
+  const relX = src.clientX - container.getBoundingClientRect().left;
+  const relY = src.clientY - container.getBoundingClientRect().top;
+  crosshair.style.left   = relX + 'px';
+  crosshair.style.top    = relY + 'px';
+  crosshair.style.opacity = '0.5';
+}
+
+// Eventos mouse
+mainCanvas.addEventListener('mousedown',  startDraw, { passive: false });
+mainCanvas.addEventListener('mousemove',  moveDraw,  { passive: false });
+mainCanvas.addEventListener('mouseup',    endDraw,   { passive: false });
+mainCanvas.addEventListener('mouseleave', endDraw,   { passive: false });
+
+// Eventos táctil / stylus
+mainCanvas.addEventListener('touchstart',  startDraw,  { passive: false });
+mainCanvas.addEventListener('touchmove',   moveDraw,   { passive: false });
+mainCanvas.addEventListener('touchend',    endDraw,    { passive: false });
+mainCanvas.addEventListener('touchcancel', endDraw,    { passive: false });
+
+// ─── ANIMATION LOOP ───────────────────────────────────────────────────
+function animLoop(timestamp) {
+  if (state.lastTime === null) state.lastTime = timestamp;
+  const dt = (timestamp - state.lastTime) / 1000; // segundos
+  state.lastTime = timestamp;
+
+  // Drift de hue global
+  state.hue = (state.hue + state.hueSpeed * dt) % 360;
+
+  // Offset animado
+  if (state.offsetAnim) {
+    state.animOffset = (state.animOffset + state.rotSpeed * dt) % 360;
+  }
+
+  // Decaimiento de profundidad (lento)
+  decayDepth();
+
+  // Actualizar color del acento en CSS (la UI sigue el hue del instrumento)
+  document.documentElement.style.setProperty('--accent-h', Math.round(state.hue));
+  document.documentElement.style.setProperty(
+    '--accent', `hsl(${Math.round(state.hue)},80%,58%)`
+  );
+
+  // Actualizar status bar
+  const totalOffset = ((state.offset + state.animOffset) % 360).toFixed(0);
+  document.getElementById('status-sym').textContent = state.symmetry;
+  document.getElementById('status-off').textContent = totalOffset + '°';
+  document.getElementById('status-hue').textContent = Math.round(state.hue) + '°';
+  document.getElementById('status-mode').textContent =
+    state.drawing ? '● DRAW' : 'LIBRE';
+
+  requestAnimationFrame(animLoop);
+}
+requestAnimationFrame(animLoop);
+
+// ─── CONTROLES UI ────────────────────────────────────────────────────
+
+// Generación de pills de simetría
+const pillsContainer = document.getElementById('sym-pills');
+SYMMETRY_VALUES.forEach(v => {
+  const pill = document.createElement('div');
+  pill.className = 'sym-pill' + (v === state.symmetry ? ' active' : '');
+  pill.textContent = v;
+  pill.addEventListener('click', () => {
+    state.symmetry = v;
+    document.querySelectorAll('.sym-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+  });
+  pillsContainer.appendChild(pill);
+});
+
+// Helper: conectar slider a estado con display
+function bindSlider(id, valId, key, transform, format) {
+  const sl  = document.getElementById(id);
+  const val = document.getElementById(valId);
+  sl.addEventListener('input', () => {
+    const v = transform ? transform(+sl.value) : +sl.value;
+    state[key] = v;
+    val.textContent = format(v, +sl.value);
+  });
+}
+
+bindSlider('sl-offset', 'val-offset', 'offset',
+  v => v, (v) => Math.round(v) + '°');
+
+bindSlider('sl-rot-speed', 'val-rot-speed', 'rotSpeed',
+  v => v, (v) => v.toFixed(1) + '°/s');
+
+bindSlider('sl-decay', 'val-decay', 'decay',
+  v => v, (v) => v < 0.05 ? 'sin decay' : v < 0.3 ? 'lento' : v < 0.6 ? 'medio' : 'rápido');
+
+bindSlider('sl-size', 'val-size', 'brushSize',
+  v => v, (v) => v.toFixed(1) + 'px');
+
+bindSlider('sl-hue-speed', 'val-hue-speed', 'hueSpeed',
+  v => v, (v) => v.toFixed(1) + '°/s');
+
+bindSlider('sl-vol', 'val-vol', 'volume',
+  v => v / 100, (_, raw) => raw + '%');
+
+bindSlider('sl-reverb', 'val-reverb', 'reverbMix',
+  v => v / 100, (_, raw) => raw + '%');
+
+bindSlider('sl-dur', 'val-dur', 'noteDuration',
+  v => v, (v) => v + 'ms');
+
+// Sincronizar volumen y reverb con AudioEngine en tiempo real
+document.getElementById('sl-vol').addEventListener('input', () => {
+  if (masterGain) masterGain.gain.value = state.volume;
+});
+document.getElementById('sl-reverb').addEventListener('input', () => {
+  if (dryGain) dryGain.gain.value = 1 - state.reverbMix;
+  if (wetGain) wetGain.gain.value = state.reverbMix;
+});
+
+// Checkboxes
+function bindCheck(id, key) {
+  document.getElementById(id).addEventListener('change', (e) => {
+    state[key] = e.target.checked;
+  });
+}
+bindCheck('chk-mirror',       'mirror');
+bindCheck('chk-rotate-anim',  'offsetAnim');
+bindCheck('chk-hue-fix',      'hueFixAngle');
+bindCheck('chk-poly',         'polyChord');
+
+// Botón LIMPIAR
+document.getElementById('btn-clear').addEventListener('click', () => {
+  // Fade out de audio
+  if (masterGain) {
+    masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.3);
+    setTimeout(() => {
+      masterGain.gain.setValueAtTime(state.volume, audioCtx.currentTime);
+    }, 1200);
+  }
+  // Fade out visual luego clear
+  ctx.globalAlpha = 1;
+  let alpha = 1;
+  const fadeOut = setInterval(() => {
+    alpha -= 0.08;
+    if (alpha <= 0) {
+      clearInterval(fadeOut);
+      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx.fillStyle = '#04040a';
+      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      depthData.fill(0);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.globalAlpha = alpha;
+      // Redraw fondo oscureciendo progresivamente
+      ctx.fillStyle = `rgba(4,4,10,${0.1})`;
+      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    }
+  }, 16);
+});
+
+// Botón SILENCIO
+const btnMute = document.getElementById('btn-mute');
+const muteInd = document.getElementById('mute-indicator');
+btnMute.addEventListener('click', () => {
+  state.muted = !state.muted;
+  if (state.muted) {
+    btnMute.classList.add('active-state');
+    btnMute.textContent = 'SONIDO';
+    muteInd.classList.add('visible');
+    if (masterGain) masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+  } else {
+    btnMute.classList.remove('active-state');
+    btnMute.textContent = 'SILENCIO';
+    muteInd.classList.remove('visible');
+    if (masterGain) masterGain.gain.setTargetAtTime(state.volume, audioCtx.currentTime, 0.1);
+  }
+});
+
+// Botón EXPORTAR
+document.getElementById('btn-save').addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = `mandala_sonora_${Date.now()}.png`;
+  link.href = mainCanvas.toDataURL('image/png');
+  link.click();
+});
+
+// ─── RESIZE HANDLING ─────────────────────────────────────────────────
+// El canvas tiene tamaño fijo; solo ajustamos el CSS scale si la ventana
+// es más pequeña que el canvas.
+function handleResize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const ww   = wrap.clientWidth;
+  const wh   = wrap.clientHeight;
+  const scale = Math.min(1, Math.min(ww / CANVAS_SIZE, wh / CANVAS_SIZE));
+  container.style.transform = `scale(${scale})`;
+  container.style.transformOrigin = 'center center';
+}
+window.addEventListener('resize', handleResize);
+handleResize();
+
+// ─── INIT: valores iniciales de UI ───────────────────────────────────
+document.getElementById('val-offset').textContent     = '0°';
+document.getElementById('val-rot-speed').textContent  = '4°/s';
+document.getElementById('val-decay').textContent      = 'lento';
+document.getElementById('val-size').textContent       = '3px';
+document.getElementById('val-hue-speed').textContent  = '1°/s';
+document.getElementById('val-vol').textContent        = '65%';
+document.getElementById('val-reverb').textContent     = '30%';
+document.getElementById('val-dur').textContent        = '150ms';
+
+console.log('%cMANDALA SONORA · lista', 'color:#0f9;font-family:monospace;font-size:14px');
+console.log('%cHaz click en el canvas para comenzar a dibujar.', 'color:#888;font-family:monospace');
+</script>
+</body>
+</html>
